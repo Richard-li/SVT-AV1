@@ -270,7 +270,7 @@ void eb_aom_free(void *memblk) {
 */
 //--------------------------------------------------------------------
 
-static void init_arrays(AomFilmGrain *params, int32_t luma_stride, int32_t chroma_stride,
+static EbErrorType init_arrays(AomFilmGrain *params, int32_t luma_stride, int32_t chroma_stride,
                         int32_t ***pred_pos_luma_p, int32_t ***pred_pos_chroma_p,
                         int32_t **luma_grain_block, int32_t **cb_grain_block,
                         int32_t **cr_grain_block, int32_t **y_line_buf, int32_t **cb_line_buf,
@@ -289,17 +289,17 @@ static void init_arrays(AomFilmGrain *params, int32_t luma_stride, int32_t chrom
     int32_t **pred_pos_luma;
     int32_t **pred_pos_chroma;
 
-    pred_pos_luma = (int32_t **)malloc(sizeof(*pred_pos_luma) * num_pos_luma);
+    EB_MALLOC(pred_pos_luma, sizeof(*pred_pos_luma) * num_pos_luma);
     ASSERT(pred_pos_luma != NULL);
     for (int32_t row = 0; row < num_pos_luma; row++) {
-        pred_pos_luma[row] = (int32_t *)malloc(sizeof(**pred_pos_luma) * 3);
+        EB_MALLOC(pred_pos_luma[row], sizeof(**pred_pos_luma) * 3);
         ASSERT(pred_pos_luma[row]);
     }
 
-    pred_pos_chroma = (int32_t **)malloc(sizeof(*pred_pos_chroma) * num_pos_chroma);
+    EB_MALLOC(pred_pos_chroma, sizeof(*pred_pos_chroma) * num_pos_chroma);
     ASSERT(pred_pos_chroma != NULL);
     for (int32_t row = 0; row < num_pos_chroma; row++) {
-        pred_pos_chroma[row] = (int32_t *)malloc(sizeof(**pred_pos_chroma) * 3);
+        EB_MALLOC(pred_pos_chroma[row], sizeof(**pred_pos_chroma) * 3);
         ASSERT(pred_pos_chroma[row]);
     }
 
@@ -339,23 +339,22 @@ static void init_arrays(AomFilmGrain *params, int32_t luma_stride, int32_t chrom
     *pred_pos_luma_p   = pred_pos_luma;
     *pred_pos_chroma_p = pred_pos_chroma;
 
-    *y_line_buf = (int32_t *)malloc(sizeof(**y_line_buf) * luma_stride * 2);
-    *cb_line_buf =
-        (int32_t *)malloc(sizeof(**cb_line_buf) * chroma_stride * (2 >> chroma_subsamp_y));
-    *cr_line_buf =
-        (int32_t *)malloc(sizeof(**cr_line_buf) * chroma_stride * (2 >> chroma_subsamp_y));
+     EB_MALLOC(*y_line_buf, sizeof(**y_line_buf) * luma_stride * 2);
+     EB_MALLOC(*cb_line_buf, sizeof(**cb_line_buf) * chroma_stride * (2 >> chroma_subsamp_y));
+     EB_MALLOC(*cr_line_buf, sizeof(**cr_line_buf) * chroma_stride * (2 >> chroma_subsamp_y));
 
-    *y_col_buf  = (int32_t *)malloc(sizeof(**y_col_buf) * (luma_subblock_size_y + 2) * 2);
-    *cb_col_buf = (int32_t *)malloc(sizeof(**cb_col_buf) *
+     EB_MALLOC(*y_col_buf, sizeof(**y_col_buf) * (luma_subblock_size_y + 2) * 2);
+     EB_MALLOC(*cb_col_buf, sizeof(**cb_col_buf) *
                                     (chroma_subblock_size_y + (2 >> chroma_subsamp_y)) *
                                     (2 >> chroma_subsamp_x));
-    *cr_col_buf = (int32_t *)malloc(sizeof(**cr_col_buf) *
+     EB_MALLOC(*cr_col_buf, sizeof(**cr_col_buf) *
                                     (chroma_subblock_size_y + (2 >> chroma_subsamp_y)) *
                                     (2 >> chroma_subsamp_x));
 
-    *luma_grain_block = (int32_t *)malloc(sizeof(**luma_grain_block) * luma_grain_samples);
-    *cb_grain_block   = (int32_t *)malloc(sizeof(**cb_grain_block) * chroma_grain_samples);
-    *cr_grain_block   = (int32_t *)malloc(sizeof(**cr_grain_block) * chroma_grain_samples);
+     EB_MALLOC(*luma_grain_block, sizeof(**luma_grain_block) * luma_grain_samples);
+     EB_MALLOC(*cb_grain_block,  sizeof(**cb_grain_block) * chroma_grain_samples);
+     EB_MALLOC(*cr_grain_block,  sizeof(**cr_grain_block) * chroma_grain_samples);
+     return EB_ErrorNone;
 }
 
 static void dealloc_arrays(AomFilmGrain *params, int32_t ***pred_pos_luma,
@@ -367,29 +366,29 @@ static void dealloc_arrays(AomFilmGrain *params, int32_t ***pred_pos_luma,
     int32_t num_pos_chroma = num_pos_luma;
     if (params->num_y_points > 0) ++num_pos_chroma;
 
-    for (int32_t row = 0; row < num_pos_luma; row++) free((*pred_pos_luma)[row]);
-    free(*pred_pos_luma);
+    for (int32_t row = 0; row < num_pos_luma; row++) EB_FREE((*pred_pos_luma)[row]);
+    EB_FREE(*pred_pos_luma);
 
-    for (int32_t row = 0; row < num_pos_chroma; row++) free((*pred_pos_chroma)[row]);
-    free((*pred_pos_chroma));
+    for (int32_t row = 0; row < num_pos_chroma; row++) EB_FREE((*pred_pos_chroma)[row]);
+    EB_FREE((*pred_pos_chroma));
 
-    free(*y_line_buf);
+    EB_FREE(*y_line_buf);
 
-    free(*cb_line_buf);
+    EB_FREE(*cb_line_buf);
 
-    free(*cr_line_buf);
+    EB_FREE(*cr_line_buf);
 
-    free(*y_col_buf);
+    EB_FREE(*y_col_buf);
 
-    free(*cb_col_buf);
+    EB_FREE(*cb_col_buf);
 
-    free(*cr_col_buf);
+    EB_FREE(*cr_col_buf);
 
-    free(*luma_grain_block);
+    EB_FREE(*luma_grain_block);
 
-    free(*cb_grain_block);
+    EB_FREE(*cb_grain_block);
 
-    free(*cr_grain_block);
+    EB_FREE(*cr_grain_block);
 }
 
 // get a number between 0 and 2^bits - 1
