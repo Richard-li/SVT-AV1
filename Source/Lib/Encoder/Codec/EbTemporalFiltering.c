@@ -2076,6 +2076,8 @@ static EbErrorType produce_temporally_filtered_pic(
     } else {
         EB_MALLOC_ALIGNED_ARRAY(predictor_16bit, BLK_PELS * COLOR_CHANNELS);
     }
+
+    // 保存最终预测结果帧的Y U V的地址
     EbByte    pred[COLOR_CHANNELS] = {predictor, predictor + BLK_PELS, predictor + (BLK_PELS << 1)};
     uint16_t *pred_16bit[COLOR_CHANNELS] = {
         predictor_16bit, predictor_16bit + BLK_PELS, predictor_16bit + (BLK_PELS << 1)};
@@ -2087,84 +2089,87 @@ static EbErrorType produce_temporally_filtered_pic(
     uint32_t blk_row, blk_col;
     int      blk_y_src_offset = 0, blk_ch_src_offset = 0;
 
-    PictureParentControlSet *picture_control_set_ptr_central =
-        list_picture_control_set_ptr[index_center];
+    // 中间帧的PCS
+    PictureParentControlSet *picture_control_set_ptr_central = list_picture_control_set_ptr[index_center];
+    
+    // 原始中间帧的buffer
     EbPictureBufferDesc *input_picture_ptr_central = list_input_picture_ptr[index_center];
 
-    int encoder_bit_depth =
-        (int)picture_control_set_ptr_central->scs_ptr->static_config.encoder_bit_depth;
+    // 从SCS获得比特深度
+    int encoder_bit_depth = (int)picture_control_set_ptr_central->scs_ptr->static_config.encoder_bit_depth;
 
-    // chroma subsampling
+    // chroma subsampling: Chroma 横、纵的子采样率 4:2:0为 ss_x = 1; ss_y = 1
     uint32_t ss_x          = picture_control_set_ptr_central->scs_ptr->subsampling_x;
     uint32_t ss_y          = picture_control_set_ptr_central->scs_ptr->subsampling_y;
+    
+    // Chroma 经过subsampling后 U,V的块宽
     uint16_t blk_width_ch  = (uint16_t)BW >> ss_x;
     uint16_t blk_height_ch = (uint16_t)BH >> ss_y;
 
-    uint32_t blk_cols = (uint32_t)(input_picture_ptr_central->width + BW - 1) /
-                        BW; // I think only the part of the picture
-    uint32_t blk_rows = (uint32_t)(input_picture_ptr_central->height + BH - 1) /
-                        BH; // that fits to the 32x32 blocks are actually filtered
+    // 计算帧的横纵有多少个SB (64*64)
+    uint32_t blk_cols = (uint32_t)(input_picture_ptr_central->width + BW - 1) / BW; // I think only the part of the picture
+    uint32_t blk_rows = (uint32_t)(input_picture_ptr_central->height + BH - 1) / BH; // that fits to the 32x32 blocks are actually filtered
 
-    uint32_t stride[COLOR_CHANNELS]      = {input_picture_ptr_central->stride_y,
-                                       input_picture_ptr_central->stride_cb,
-                                       input_picture_ptr_central->stride_cr};
+    // 原始中间帧的stride与预测块的stride（因为预测块就是BW * BW宽，且没有padding部分，UV部分即上方计算的blk_width_ch, blk_width_ch）
+    uint32_t stride[COLOR_CHANNELS]      = {input_picture_ptr_central->stride_y, input_picture_ptr_central->stride_cb, input_picture_ptr_central->stride_cr};
     uint32_t stride_pred[COLOR_CHANNELS] = {BW, blk_width_ch, blk_width_ch};
 
+    // ME的所有上下文
     MeContext *context_ptr = me_context_ptr->me_context_ptr;
 
     uint32_t x_seg_idx;
     uint32_t y_seg_idx;
     uint32_t picture_width_in_b64  = blk_cols;
     uint32_t picture_height_in_b64 = blk_rows;
-    SEGMENT_CONVERT_IDX_TO_XY(segment_index,
-                              x_seg_idx,
-                              y_seg_idx,
-                              picture_control_set_ptr_central->tf_segments_column_count);
-    uint32_t x_b64_start_idx = SEGMENT_START_IDX(
-        x_seg_idx, picture_width_in_b64, picture_control_set_ptr_central->tf_segments_column_count);
-    uint32_t x_b64_end_idx = SEGMENT_END_IDX(
-        x_seg_idx, picture_width_in_b64, picture_control_set_ptr_central->tf_segments_column_count);
-    uint32_t y_b64_start_idx = SEGMENT_START_IDX(
-        y_seg_idx, picture_height_in_b64, picture_control_set_ptr_central->tf_segments_row_count);
-    uint32_t y_b64_end_idx = SEGMENT_END_IDX(
-        y_seg_idx, picture_height_in_b64, picture_control_set_ptr_central->tf_segments_row_count);
+    
+    SEGMENT_CONVERT_IDX_TO_XY(segment_index, x_seg_idx, y_seg_idx, picture_control_set_ptr_central->tf_segments_column_count);
+    
+    // 在之后遍历每个SB时候，横纵SB的index取值范围
+    uint32_t x_b64_start_idx = SEGMENT_START_IDX(x_seg_idx, picture_width_in_b64, picture_control_set_ptr_central->tf_segments_column_count);
+    uint32_t x_b64_end_idx = SEGMENT_END_IDX(x_seg_idx, picture_width_in_b64, picture_control_set_ptr_central->tf_segments_column_count);
+    uint32_t y_b64_start_idx = SEGMENT_START_IDX(y_seg_idx, picture_height_in_b64, picture_control_set_ptr_central->tf_segments_row_count);
+    uint32_t y_b64_end_idx = SEGMENT_END_IDX(y_seg_idx, picture_height_in_b64, picture_control_set_ptr_central->tf_segments_row_count);
 
-    // first position of the frame buffer according to the index center
-    src_center_ptr_start[C_Y] =
-        input_picture_ptr_central->buffer_y +
-        input_picture_ptr_central->origin_y * input_picture_ptr_central->stride_y +
-        input_picture_ptr_central->origin_x;
+    // first position of he frame buffer according to the index center：
+    // 原始中间帧的Y U V的起始像素点，此处是指buffer中的位置，所以横纵的padding必须计算进去（picture_width * stride + padding）
+    /* 例如 padding 为 3 个pixel，则图像为：（P表示padding像素，M表示原始像素）
+            PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP
+            PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP
+            PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP
+            PPPXMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMPPP
+            PPPMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMPPP
+            PPPMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMPPP
+            PPPMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMPPP
+            PPPMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMPPP
+            PPPMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMPPP
+            PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP
+            PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP
+            PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP
+    */
+    // 则此时src_center_ptr_start[C_Y]就是指上图中第四行第四个的 X 的坐标。UV的计算同理
+    src_center_ptr_start[C_Y] = input_picture_ptr_central->buffer_y + input_picture_ptr_central->origin_y * input_picture_ptr_central->stride_y + input_picture_ptr_central->origin_x;
+    src_center_ptr_start[C_U] = input_picture_ptr_central->buffer_cb + (input_picture_ptr_central->origin_y >> ss_y) * input_picture_ptr_central->stride_cb + (input_picture_ptr_central->origin_x >> ss_x);
+    src_center_ptr_start[C_V] = input_picture_ptr_central->buffer_cr + (input_picture_ptr_central->origin_y >> ss_y) * input_picture_ptr_central->stride_cr + (input_picture_ptr_central->origin_x >> ss_x);
 
-    src_center_ptr_start[C_U] =
-        input_picture_ptr_central->buffer_cb +
-        (input_picture_ptr_central->origin_y >> ss_y) * input_picture_ptr_central->stride_cb +
-        (input_picture_ptr_central->origin_x >> ss_x);
-
-    src_center_ptr_start[C_V] =
-        input_picture_ptr_central->buffer_cr +
-        (input_picture_ptr_central->origin_y >> ss_y) * input_picture_ptr_central->stride_cr +
-        (input_picture_ptr_central->origin_x >> ss_x);
-
-    altref_buffer_highbd_start[C_Y] =
-        picture_control_set_ptr_central->altref_buffer_highbd[C_Y] +
-        input_picture_ptr_central->origin_y * input_picture_ptr_central->stride_y +
-        input_picture_ptr_central->origin_x;
-
-    altref_buffer_highbd_start[C_U] = picture_control_set_ptr_central->altref_buffer_highbd[C_U] +
-                                      (input_picture_ptr_central->origin_y >> ss_y) *
-                                          input_picture_ptr_central->stride_bit_inc_cb +
-                                      (input_picture_ptr_central->origin_x >> ss_x);
-
-    altref_buffer_highbd_start[C_V] = picture_control_set_ptr_central->altref_buffer_highbd[C_V] +
-                                      (input_picture_ptr_central->origin_y >> ss_y) *
-                                          input_picture_ptr_central->stride_bit_inc_cr +
-                                      (input_picture_ptr_central->origin_x >> ss_x);
+    // 高比特深度的ALTREF帧起始坐标
+    altref_buffer_highbd_start[C_Y] = picture_control_set_ptr_central->altref_buffer_highbd[C_Y] + input_picture_ptr_central->origin_y * input_picture_ptr_central->stride_y + input_picture_ptr_central->origin_x;
+    altref_buffer_highbd_start[C_U] = picture_control_set_ptr_central->altref_buffer_highbd[C_U] + (input_picture_ptr_central->origin_y >> ss_y) * input_picture_ptr_central->stride_bit_inc_cb + (input_picture_ptr_central->origin_x >> ss_x);
+    altref_buffer_highbd_start[C_V] = picture_control_set_ptr_central->altref_buffer_highbd[C_V] + (input_picture_ptr_central->origin_y >> ss_y) * input_picture_ptr_central->stride_bit_inc_cr + (input_picture_ptr_central->origin_x >> ss_x);
 
     *filtered_sse    = 0;
     *filtered_sse_uv = 0;
 
-    for (blk_row = y_b64_start_idx; blk_row < y_b64_end_idx; blk_row++) {
-        for (blk_col = x_b64_start_idx; blk_col < x_b64_end_idx; blk_col++) {
+    // 开始以SB(64 * 64)为单位遍历获取到的帧
+    for (blk_row = y_b64_start_idx; blk_row < y_b64_end_idx; blk_row++) 
+    {
+        for (blk_col = x_b64_start_idx; blk_col < x_b64_end_idx; blk_col++) 
+        {
+            // 扫描位置的偏移
+            /*
+                0       64      128     192     256     320     384     448     512     576     640
+                776*64  776*64+64   ...
+                776*2*64 ......
+            */
             blk_y_src_offset  = (blk_col * BW) + (blk_row * BH) * stride[C_Y];
             blk_ch_src_offset = (blk_col * blk_width_ch) + (blk_row * blk_height_ch) * stride[C_U];
 
@@ -2173,79 +2178,54 @@ static EbErrorType produce_temporally_filtered_pic(
             memset(counter, 0, BLK_PELS * COLOR_CHANNELS * sizeof(counter[0]));
 
             int blk_fw[N_16X16_BLOCKS];
-            // for every frame to filter
-            for (frame_index = 0;
-                 frame_index < (picture_control_set_ptr_central->past_altref_nframes +
-                                picture_control_set_ptr_central->future_altref_nframes + 1);
-                 frame_index++) {
-                if (!is_highbd) {
+
+            // 所有存在的可以做为 past_altref 和 future_altref的帧
+            for (frame_index = 0; frame_index < (picture_control_set_ptr_central->past_altref_nframes + picture_control_set_ptr_central->future_altref_nframes + 1); frame_index++) 
+            {
+                if (!is_highbd) 
+                {
+                    // 帧的起始位置 + 扫描位置偏移 得到当前稻苗到的位置
                     src_center_ptr[C_Y] = src_center_ptr_start[C_Y] + blk_y_src_offset;
                     src_center_ptr[C_U] = src_center_ptr_start[C_U] + blk_ch_src_offset;
                     src_center_ptr[C_V] = src_center_ptr_start[C_V] + blk_ch_src_offset;
-                } else {
-                    altref_buffer_highbd_ptr[C_Y] =
-                        altref_buffer_highbd_start[C_Y] + blk_y_src_offset;
-                    altref_buffer_highbd_ptr[C_U] =
-                        altref_buffer_highbd_start[C_U] + blk_ch_src_offset;
-                    altref_buffer_highbd_ptr[C_V] =
-                        altref_buffer_highbd_start[C_V] + blk_ch_src_offset;
+                } 
+                else 
+                {
+                    // 高比特深度帧的起始位置 + 扫描位置偏移 得到当前稻苗到的位置
+                    altref_buffer_highbd_ptr[C_Y] = altref_buffer_highbd_start[C_Y] + blk_y_src_offset;
+                    altref_buffer_highbd_ptr[C_U] = altref_buffer_highbd_start[C_U] + blk_ch_src_offset;
+                    altref_buffer_highbd_ptr[C_V] = altref_buffer_highbd_start[C_V] + blk_ch_src_offset;
                 }
 
                 // ------------
                 // Step 1: motion estimation + compensation
                 // ------------
+                
+                // 获取循环内的frame index与中间帧（从上一级callstack其实可以看到，中间帧就是当前帧）
                 me_context_ptr->me_context_ptr->tf_frame_index = frame_index ;
                 me_context_ptr->me_context_ptr->tf_index_center = index_center;
-                // if frame to process is the center frame
-                if (frame_index == index_center) {
-                    // skip MC (central frame)
-                    if (!is_highbd) {
-                        pic_copy_kernel_8bit(
-                            src_center_ptr[C_Y], stride[C_Y], pred[C_Y], stride_pred[C_Y], BW, BH);
-                        pic_copy_kernel_8bit(src_center_ptr[C_U],
-                                             stride[C_U],
-                                             pred[C_U],
-                                             stride_pred[C_U],
-                                             blk_width_ch,
-                                             blk_height_ch);
-                        pic_copy_kernel_8bit(src_center_ptr[C_V],
-                                             stride[C_V],
-                                             pred[C_V],
-                                             stride_pred[C_V],
-                                             blk_width_ch,
-                                             blk_height_ch);
-                    } else {
-                        pic_copy_kernel_16bit(altref_buffer_highbd_ptr[C_Y],
-                                              stride[C_Y],
-                                              pred_16bit[C_Y],
-                                              stride_pred[C_Y],
-                                              BW,
-                                              BH);
-                        pic_copy_kernel_16bit(altref_buffer_highbd_ptr[C_U],
-                                              stride[C_U],
-                                              pred_16bit[C_U],
-                                              stride_pred[C_U],
-                                              blk_width_ch,
-                                              blk_height_ch);
-                        pic_copy_kernel_16bit(altref_buffer_highbd_ptr[C_V],
-                                              stride[C_V],
-                                              pred_16bit[C_V],
-                                              stride_pred[C_V],
-                                              blk_width_ch,
-                                              blk_height_ch);
+                
+                // 处理中间帧
+                if (frame_index == index_center) 
+                {
+                    // 直接拷贝到 pred 中去
+                    if (!is_highbd) 
+                    {
+                        pic_copy_kernel_8bit(src_center_ptr[C_Y], stride[C_Y], pred[C_Y], stride_pred[C_Y], BW, BH);
+                        pic_copy_kernel_8bit(src_center_ptr[C_U], stride[C_U], pred[C_U], stride_pred[C_U], blk_width_ch, blk_height_ch);
+                        pic_copy_kernel_8bit(src_center_ptr[C_V], stride[C_V], pred[C_V], stride_pred[C_V], blk_width_ch, blk_height_ch);
+                    } 
+                    else 
+                    {
+                        pic_copy_kernel_16bit(altref_buffer_highbd_ptr[C_Y], stride[C_Y], pred_16bit[C_Y], stride_pred[C_Y], BW, BH);
+                        pic_copy_kernel_16bit(altref_buffer_highbd_ptr[C_U], stride[C_U], pred_16bit[C_U], stride_pred[C_U], blk_width_ch, blk_height_ch);
+                        pic_copy_kernel_16bit(altref_buffer_highbd_ptr[C_V], stride[C_V], pred_16bit[C_V], stride_pred[C_V], blk_width_ch, blk_height_ch);
                     }
-
-                } else {
+                } 
+                else 
+                {
                     // Initialize ME context
-                    create_me_context_and_picture_control(
-                        me_context_ptr,
-                        list_picture_control_set_ptr[frame_index],
-                        list_picture_control_set_ptr[index_center],
-                        input_picture_ptr_central,
-                        blk_row,
-                        blk_col,
-                        ss_x,
-                        ss_y);
+                    create_me_context_and_picture_control(me_context_ptr, list_picture_control_set_ptr[frame_index], list_picture_control_set_ptr[index_center], input_picture_ptr_central, blk_row, blk_col, ss_x, ss_y);
 
                     // Perform ME - context_ptr will store the outputs (MVs, buffers, etc)
                     // Block-based MC using open-loop HME + refinement
@@ -2256,6 +2236,7 @@ static EbErrorType produce_temporally_filtered_pic(
                         (uint32_t)blk_row * BH, // y block
                         context_ptr,
                         input_picture_ptr_central); // source picture
+                    
                     // Perform TF sub-pel search for 32x32 blocks
                     tf_32x32_sub_pel_search(picture_control_set_ptr_central,
                         context_ptr,
@@ -2308,10 +2289,8 @@ static EbErrorType produce_temporally_filtered_pic(
                 // ------------
                 int use_planewise_strategy = 1;
                 // Hyper-parameter for filter weight adjustment.
-                int decay_control = (picture_control_set_ptr_central->scs_ptr->input_resolution ==
-                                     INPUT_SIZE_576p_RANGE_OR_LOWER)
-                                        ? 3
-                                        : 4;
+                int decay_control = (picture_control_set_ptr_central->scs_ptr->input_resolution == INPUT_SIZE_576p_RANGE_OR_LOWER) ? 3 : 4;
+                
                 // Decrease the filter strength for low QPs
                 if (picture_control_set_ptr_central->scs_ptr->static_config.qp <= ALT_REF_QP_THRESH)
                     decay_control--;
