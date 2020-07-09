@@ -117,7 +117,6 @@ static void add_ref_mv_candidate(const ModeInfo *const   candidate_mi,
                                  IntMv *gm_mv_candidates, const EbWarpedMotionParams *gm_params,
                                  int32_t col, int32_t weight) {
     if (!is_inter_block(&candidate->block_mi)) return; // for intrabc
-    int32_t index = 0, ref;
     assert(weight % 2 == 0);
 
     if (rf[1] == NONE_FRAME) {
@@ -128,7 +127,7 @@ static void add_ref_mv_candidate(const ModeInfo *const   candidate_mi,
         (void)ref_match_count;
 
         // single reference frame
-        for (ref = 0; ref < 2; ++ref) {
+        for (int32_t ref = 0; ref < 2; ++ref) {
             if (candidate->block_mi.ref_frame[ref] == rf[0]) {
                 IntMv this_refmv;
                 if (is_global_mv_block(candidate->block_mi.mode,
@@ -137,9 +136,10 @@ static void add_ref_mv_candidate(const ModeInfo *const   candidate_mi,
                     this_refmv = gm_mv_candidates[0];
                 else
                     this_refmv = get_sub_block_mv(candidate_mi, ref, col);
-
+                int32_t index;
                 for (index = 0; index < *refmv_count; ++index)
-                    if (ref_mv_stack[index].this_mv.as_int == this_refmv.as_int) break;
+                    if (ref_mv_stack[index].this_mv.as_int == this_refmv.as_int)
+                        break;
 
                 if (index < *refmv_count) ref_mv_stack[index].weight += weight * len;
 
@@ -166,7 +166,7 @@ static void add_ref_mv_candidate(const ModeInfo *const   candidate_mi,
             candidate->block_mi.ref_frame[1] == rf[1]) {
             IntMv this_refmv[2];
 
-            for (ref = 0; ref < 2; ++ref) {
+            for (int32_t ref = 0; ref < 2; ++ref) {
                 if (is_global_mv_block(candidate->block_mi.mode,
                                        candidate->block_mi.sb_type,
                                        gm_params[rf[ref]].wmtype))
@@ -174,7 +174,7 @@ static void add_ref_mv_candidate(const ModeInfo *const   candidate_mi,
                 else
                     this_refmv[ref] = get_sub_block_mv(candidate_mi, ref, col);
             }
-
+            int32_t index;
             for (index = 0; index < *refmv_count; ++index)
                 if ((ref_mv_stack[index].this_mv.as_int == this_refmv[0].as_int) &&
                     (ref_mv_stack[index].comp_mv.as_int == this_refmv[1].as_int))
@@ -1118,8 +1118,6 @@ void mvp_bypass_init(PictureControlSet *pcs_ptr, ModeDecisionContext *context_pt
     const int32_t bw     = mi_size_wide[bsize];
     const int32_t bh     = mi_size_high[bsize];
 
-    xd->n8_w = context_ptr->blk_geom->bwidth >> MI_SIZE_LOG2;
-    xd->n8_h = context_ptr->blk_geom->bheight >> MI_SIZE_LOG2;
     xd->n4_w = context_ptr->blk_geom->bwidth >> MI_SIZE_LOG2;
     xd->n4_h = context_ptr->blk_geom->bheight >> MI_SIZE_LOG2;
 
@@ -1244,8 +1242,6 @@ void generate_av1_mvp_table(TileInfo *tile, ModeDecisionContext *context_ptr, Bl
                                              frm_hdr->force_integer_mv);
                 gm_mv[1].as_int = 0;
             } else {
-                MvReferenceFrame rf[2];
-                av1_set_ref_frame(rf, ref_frame);
                 gm_mv[0] = gm_get_motion_vector_enc(&pcs_ptr->parent_pcs_ptr->global_motion[rf[0]],
                                                     frm_hdr->allow_high_precision_mv,
                                                     bsize,
@@ -1440,7 +1436,7 @@ void update_av1_mi_map(BlkStruct *blk_ptr, uint32_t blk_origin_x, uint32_t blk_o
             mi_ptr[mi_x + mi_y * mi_stride]
                 .mbmi.block_mi.interintra_mode_params.interintra_wedge_index =
                 blk_ptr->interintra_wedge_index; //in
-            memcpy(&mi_ptr[mi_x + mi_y * mi_stride].mbmi.palette_mode_info,
+            eb_memcpy(&mi_ptr[mi_x + mi_y * mi_stride].mbmi.palette_mode_info,
                    &blk_ptr->palette_info.pmi,
                    sizeof(PaletteModeInfo));
             //needed for CDEF
@@ -1566,7 +1562,7 @@ void update_mi_map(struct ModeDecisionContext *context_ptr, BlkStruct *blk_ptr,
             mi_ptr[mi_x + mi_y * mi_stride]
                 .mbmi.block_mi.interintra_mode_params.interintra_wedge_index =
                 blk_ptr->interintra_wedge_index; //in
-            memcpy(&mi_ptr[mi_x + mi_y * mi_stride].mbmi.palette_mode_info,
+            eb_memcpy(&mi_ptr[mi_x + mi_y * mi_stride].mbmi.palette_mode_info,
                    &blk_ptr->palette_info.pmi,
                    sizeof(PaletteModeInfo));
             mi_ptr[mi_x + mi_y * mi_stride].mbmi.block_mi.skip_mode  = (int8_t)blk_ptr->skip_flag;

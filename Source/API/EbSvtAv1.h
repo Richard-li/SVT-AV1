@@ -16,12 +16,12 @@ extern "C" {
 // API Version
 #define SVT_VERSION_MAJOR 0
 #define SVT_VERSION_MINOR 8
-#define SVT_VERSION_PATCHLEVEL 3
+#define SVT_VERSION_PATCHLEVEL 4
 
 #ifdef _WIN32
 #define EB_API __declspec(dllexport)
 #else
-#define EB_API
+#define EB_API __attribute__ ((visibility ("default")))
 #endif
 
 #define EB_MAX_NUM_OPERATING_POINTS 32

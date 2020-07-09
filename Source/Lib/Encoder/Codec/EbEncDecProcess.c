@@ -322,9 +322,6 @@ static void enc_dec_configure_sb(EncDecContext *context_ptr, SuperBlock *sb_ptr,
 EbBool assign_enc_dec_segments(EncDecSegments *segmentPtr, uint16_t *segmentInOutIndex,
                                EncDecTasks *taskPtr, EbFifo *srmFifoPtr) {
     EbBool           continue_processing_flag = EB_FALSE;
-    EbObjectWrapper *wrapper_ptr;
-    EncDecTasks *    feedback_task_ptr;
-
     uint32_t row_segment_index = 0;
     uint32_t segment_index;
     uint32_t right_segment_index;
@@ -419,7 +416,6 @@ EbBool assign_enc_dec_segments(EncDecSegments *segmentPtr, uint16_t *segmentInOu
                     *segmentInOutIndex =
                         segmentPtr->row_array[row_segment_index + 1].current_seg_index;
                     ++segmentPtr->row_array[row_segment_index + 1].current_seg_index;
-                    self_assigned            = EB_TRUE;
                     continue_processing_flag = EB_TRUE;
 
                     //fprintf(trace, "Start  Pic: %u Seg: %u\n",
@@ -431,8 +427,9 @@ EbBool assign_enc_dec_segments(EncDecSegments *segmentPtr, uint16_t *segmentInOu
         }
 
         if (feedback_row_index > 0) {
+            EbObjectWrapper *wrapper_ptr;
             eb_get_empty_object(srmFifoPtr, &wrapper_ptr);
-            feedback_task_ptr                      = (EncDecTasks *)wrapper_ptr->object_ptr;
+            EncDecTasks *    feedback_task_ptr     = (EncDecTasks *)wrapper_ptr->object_ptr;
             feedback_task_ptr->input_type          = ENCDEC_TASKS_ENCDEC_INPUT;
             feedback_task_ptr->enc_dec_segment_row = feedback_row_index;
             feedback_task_ptr->pcs_wrapper_ptr     = taskPtr->pcs_wrapper_ptr;
@@ -1676,7 +1673,7 @@ void copy_statistics_to_ref_obj_ect(PictureControlSet *pcs_ptr, SequenceControlS
             ->frame_type = pcs_ptr->parent_pcs_ptr->frm_hdr.frame_type;
         ((EbReferenceObject *)pcs_ptr->parent_pcs_ptr->reference_picture_wrapper_ptr->object_ptr)
             ->order_hint = pcs_ptr->parent_pcs_ptr->cur_order_hint;
-        memcpy(((EbReferenceObject *)
+        eb_memcpy(((EbReferenceObject *)
                     pcs_ptr->parent_pcs_ptr->reference_picture_wrapper_ptr->object_ptr)
                    ->ref_order_hint,
                pcs_ptr->parent_pcs_ptr->ref_order_hint,

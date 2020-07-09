@@ -477,8 +477,6 @@ void neighbor_array_unit16bit_sample_write(NeighborArrayUnit *na_unit_ptr, uint1
                   get_neighbor_array_unit_top_index(na_unit_ptr,
                                                     pic_origin_x); //CHKN * na_unit_ptr->unit_size;
 
-        dst_step  = na_unit_ptr->unit_size;
-        read_step = na_unit_ptr->unit_size;
         count     = block_width;
 
         for (idx = 0; idx < count; ++idx) {
@@ -736,7 +734,7 @@ void neighbor_array_unit_mode_write(NeighborArrayUnit *na_unit_ptr, uint8_t *val
         count = block_width >> na_unit_ptr->granularity_normal_log2;
 
         for (idx = 0; idx < count; ++idx) {
-            /* memcpy less that 10 bytes*/
+            /* eb_memcpy less that 10 bytes*/
             for (j = 0; j < na_unit_size; ++j) dst_ptr[j] = value[j];
 
             dst_ptr += na_unit_size;
@@ -767,7 +765,7 @@ void neighbor_array_unit_mode_write(NeighborArrayUnit *na_unit_ptr, uint8_t *val
         count = block_height >> na_unit_ptr->granularity_normal_log2;
 
         for (idx = 0; idx < count; ++idx) {
-            /* memcpy less that 10 bytes*/
+            /* eb_memcpy less that 10 bytes*/
             for (j = 0; j < na_unit_size; ++j) dst_ptr[j] = value[j];
 
             dst_ptr += na_unit_size;
@@ -804,7 +802,7 @@ void neighbor_array_unit_mode_write(NeighborArrayUnit *na_unit_ptr, uint8_t *val
         count = ((block_width + block_height) >> na_unit_ptr->granularity_top_left_log2) - 1;
 
         for (idx = 0; idx < count; ++idx) {
-            /* memcpy less that 10 bytes*/
+            /* eb_memcpy less that 10 bytes*/
             for (j = 0; j < na_unit_size; ++j) dst_ptr[j] = value[j];
 
             dst_ptr += na_unit_size;

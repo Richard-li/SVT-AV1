@@ -185,7 +185,7 @@ extern "C" {
     RTCD_EXTERN void(*residual_kernel8bit)(uint8_t *input, uint32_t input_stride, uint8_t *pred, uint32_t pred_stride, int16_t *residual, uint32_t residual_stride, uint32_t area_width, uint32_t area_height);
     RTCD_EXTERN uint64_t(*compute8x8_satd_u8)(uint8_t *diff, uint64_t *dc_value, uint32_t src_stride);
     RTCD_EXTERN int32_t(*sum_residual8bit)(int16_t *in_ptr, uint32_t size, uint32_t stride_in);
-    RTCD_EXTERN void(*full_distortion_kernel_cbf_zero32_bits)(int32_t *coeff, uint32_t coeff_stride, int32_t *recon_coeff, uint32_t recon_coeff_stride, uint64_t distortion_result[DIST_CALC_TOTAL], uint32_t area_width, uint32_t area_height);
+    RTCD_EXTERN void(*full_distortion_kernel_cbf_zero32_bits)(int32_t *coeff, uint32_t coeff_stride, uint64_t distortion_result[DIST_CALC_TOTAL], uint32_t area_width, uint32_t area_height);
     RTCD_EXTERN void(*full_distortion_kernel32_bits)(int32_t *coeff, uint32_t coeff_stride, int32_t *recon_coeff, uint32_t recon_coeff_stride, uint64_t distortion_result[DIST_CALC_TOTAL], uint32_t area_width, uint32_t area_height);
     RTCD_EXTERN void(*picture_average_kernel)(EbByte src0, uint32_t src0_stride, EbByte src1, uint32_t src1_stride, EbByte dst, uint32_t dst_stride, uint32_t area_width, uint32_t area_height);
     RTCD_EXTERN void(*picture_average_kernel1_line)(EbByte src0, EbByte src1, EbByte dst, uint32_t area_width);
@@ -1089,8 +1089,8 @@ extern "C" {
     RTCD_EXTERN void(*aom_lpf_vertical_8)(uint8_t *s, int32_t pitch, const uint8_t *blimit, const uint8_t *limit, const uint8_t *thresh);
     uint32_t log2f_32(uint32_t x);
     RTCD_EXTERN uint32_t(*eb_log2f)(uint32_t x);
-    void eb_memcpy_c(void  *dst_ptr, void  *src_ptr, size_t size);
-    RTCD_EXTERN void (*eb_memcpy)(void  *dst_ptr, void  *src_ptr, size_t size);
+    void eb_memcpy_c(void  *dst_ptr, void  const*src_ptr, size_t size);
+    RTCD_EXTERN void (*eb_memcpy)(void  *dst_ptr, void  const*src_ptr, size_t size);
 #ifdef ARCH_X86
 
     void aom_blend_a64_vmask_sse4_1(uint8_t *dst, uint32_t dst_stride, const uint8_t *src0, uint32_t src0_stride, const uint8_t *src1, uint32_t src1_stride, const uint8_t *mask, int w, int h);
@@ -1211,7 +1211,6 @@ extern "C" {
     void residual_kernel8bit_avx512(uint8_t *input, uint32_t input_stride, uint8_t *pred, uint32_t pred_stride, int16_t *residual, uint32_t residual_stride, uint32_t area_width, uint32_t area_height);
 
     void full_distortion_kernel_cbf_zero32_bits_avx2(int32_t *coeff, uint32_t coeff_stride,
-        int32_t *recon_coeff, uint32_t recon_coeff_stride,
         uint64_t distortion_result[DIST_CALC_TOTAL],
         uint32_t area_width, uint32_t area_height);
     void full_distortion_kernel32_bits_avx2(int32_t *coeff, uint32_t coeff_stride, int32_t *recon_coeff,
@@ -2215,7 +2214,7 @@ extern "C" {
 
             uint32_t Log2f_ASM(uint32_t x);
 
-            extern void eb_memcpy_intrin_sse (void  *dst_ptr, void  *src_ptr, size_t size);
+            extern void eb_memcpy_intrin_sse (void  *dst_ptr, void  const *src_ptr, size_t size);
 #endif
 
 

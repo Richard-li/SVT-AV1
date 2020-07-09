@@ -100,7 +100,7 @@ void eb_av1_filter_intra_edge_high_c_old(uint8_t *p, int32_t sz, int32_t strengt
     const int32_t filt = strength - 1;
     uint8_t edge[129];
 
-    memcpy(edge, p, sz * sizeof(*p));
+    eb_memcpy(edge, p, sz * sizeof(*p));
     for (int32_t i = 1; i < sz; i++) {
         int32_t s = 0;
         for (int32_t j = 0; j < INTRA_EDGE_TAPS; j++) {
@@ -903,7 +903,7 @@ static INLINE void v_predictor(uint8_t *dst, ptrdiff_t stride, int32_t bw, int32
     (void)left;
 
     for (r = 0; r < bh; r++) {
-        memcpy(dst, above, bw);
+        eb_memcpy(dst, above, bw);
         dst += stride;
     }
 }
@@ -1014,7 +1014,7 @@ static INLINE void highbd_v_predictor(uint16_t *dst, ptrdiff_t stride, int32_t b
     (void)left;
     (void)bd;
     for (r = 0; r < bh; r++) {
-        memcpy(dst, above, bw * sizeof(uint16_t));
+        eb_memcpy(dst, above, bw * sizeof(uint16_t));
         dst += stride;
     }
 }
@@ -2362,8 +2362,6 @@ void eb_av1_highbd_dr_prediction_z1_c(uint16_t *dst, ptrdiff_t stride, int32_t b
     const uint16_t *left, int32_t upsample_above,
     int32_t dx, int32_t dy, int32_t bd)
 {
-    int32_t r, c, x, base, shift, val;
-
     (void)left;
     (void)dy;
     (void)bd;
@@ -2373,10 +2371,9 @@ void eb_av1_highbd_dr_prediction_z1_c(uint16_t *dst, ptrdiff_t stride, int32_t b
     const int32_t max_base_x = ((bw + bh) - 1) << upsample_above;
     const int32_t frac_bits = 6 - upsample_above;
     const int32_t base_inc = 1 << upsample_above;
-    x = dx;
-    for (r = 0; r < bh; ++r, dst += stride, x += dx) {
-        base = x >> frac_bits;
-        shift = ((x << upsample_above) & 0x3F) >> 1;
+    for (int32_t r = 0, x = dx; r < bh; ++r, dst += stride, x += dx) {
+        int32_t base = x >> frac_bits;
+        int32_t shift = ((x << upsample_above) & 0x3F) >> 1;
 
         if (base >= max_base_x) {
             for (int32_t i = r; i < bh; ++i) {
@@ -2386,9 +2383,9 @@ void eb_av1_highbd_dr_prediction_z1_c(uint16_t *dst, ptrdiff_t stride, int32_t b
             return;
         }
 
-        for (c = 0; c < bw; ++c, base += base_inc) {
+        for (int32_t c = 0; c < bw; ++c, base += base_inc) {
             if (base < max_base_x) {
-                val = above[base] * (32 - shift) + above[base + 1] * shift;
+                int32_t val = above[base] * (32 - shift) + above[base + 1] * shift;
                 val = ROUND_POWER_OF_TWO(val, 5);
                 dst[c] = (uint16_t)clip_pixel_highbd(val, bd);
             }
@@ -2476,7 +2473,7 @@ void eb_av1_filter_intra_edge_high_c(uint16_t *p, int32_t sz, int32_t strength)
     const int32_t filt = strength - 1;
     uint16_t edge[129];
 
-    memcpy(edge, p, sz * sizeof(*p));
+    eb_memcpy_c(edge, p, sz * sizeof(*p));
     for (int32_t i = 1; i < sz; i++) {
         int32_t s = 0;
         for (int32_t j = 0; j < INTRA_EDGE_TAPS; j++) {
@@ -2571,7 +2568,7 @@ void highbd_filter_intra_predictor(uint16_t *dst, ptrdiff_t stride,
         memset(buffer[r], 0, (bw + 1) * sizeof(buffer[0][0]));
 
     for (r = 0; r < bh; ++r) buffer[r + 1][0] = left[r];
-    memcpy(buffer[0], &above[-1], (bw + 1) * sizeof(buffer[0][0]));
+    eb_memcpy(buffer[0], &above[-1], (bw + 1) * sizeof(buffer[0][0]));
 
     for (r = 1; r < bh + 1; r += 2)
         for (c = 1; c < bw + 1; c += 4) {
@@ -2600,10 +2597,7 @@ void highbd_filter_intra_predictor(uint16_t *dst, ptrdiff_t stride,
         }
 
     for (r = 0; r < bh; ++r) {
-        memcpy(dst, &buffer[r + 1][1], bw * sizeof(dst[0]));
+        eb_memcpy(dst, &buffer[r + 1][1], bw * sizeof(dst[0]));
         dst += stride;
     }
 }
-
-
-

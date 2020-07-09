@@ -198,13 +198,12 @@ int64_t     pick_wedge_fixed_sign(ModeDecisionCandidate *candidate_ptr, PictureC
                                   ModeDecisionContext *context_ptr, const BlockSize bsize,
                                   const int16_t *const residual1, const int16_t *const diff10,
                                   const int8_t wedge_sign, int8_t *const best_wedge_index);
-void model_rd_for_sb_with_curvfit(PictureControlSet *pcs_ptr, ModeDecisionContext *context_ptr,
-                                  BlockSize bsize, int bw, int bh, uint8_t *src_buf,
-                                  uint32_t src_stride, uint8_t *pred_buf, uint32_t pred_stride,
-                                  int plane_from, int plane_to, int mi_row, int mi_col,
-                                  int *out_rate_sum, int64_t *out_dist_sum, int *skip_txfm_sb,
-                                  int64_t *skip_sse_sb, int *plane_rate, int64_t *plane_sse,
-                                  int64_t *plane_dist);
+void        model_rd_for_sb_with_curvfit(PictureControlSet *  picture_control_set_ptr,
+                                         ModeDecisionContext *context_ptr, BlockSize bsize, int bw, int bh,
+                                         uint8_t *src_buf, uint32_t src_stride, uint8_t *pred_buf,
+                                         uint32_t pred_stride, int plane_from, int plane_to, int mi_row,
+                                         int mi_col, int *out_rate_sum, int64_t *out_dist_sum,
+                                         int *plane_rate, int64_t *plane_sse, int64_t *plane_dist);
 
 static int64_t pick_interintra_wedge(ModeDecisionCandidate *candidate_ptr,
                                      PictureControlSet *pcs_ptr, ModeDecisionContext *context_ptr,
@@ -453,8 +452,6 @@ void inter_intra_search(PictureControlSet *pcs_ptr, ModeDecisionContext *context
                                                  &dist_sum,
                                                  NULL,
                                                  NULL,
-                                                 NULL,
-                                                 NULL,
                                                  NULL);
                 } else {
                     model_rd_for_sb_with_curvfit(pcs_ptr,
@@ -472,8 +469,6 @@ void inter_intra_search(PictureControlSet *pcs_ptr, ModeDecisionContext *context
                                                  0,
                                                  &rate_sum,
                                                  &dist_sum,
-                                                 NULL,
-                                                 NULL,
                                                  NULL,
                                                  NULL,
                                                  NULL);
@@ -881,8 +876,11 @@ void unipred_3x3_candidates_injection(const SequenceControlSet *scs_ptr, Picture
         const MeCandidate *me_block_results_ptr = &me_block_results[me_candidate_index];
         const uint8_t      inter_direction      = me_block_results_ptr->direction;
         const uint8_t      list0_ref_index      = me_block_results_ptr->ref_idx_l0;
-        if (list0_ref_index > context_ptr->md_max_ref_count - 1) continue;
+
         if (inter_direction == 0) {
+            if (list0_ref_index > context_ptr->md_max_ref_count - 1)
+                continue;
+
             for (bipred_index = 0; bipred_index < BIPRED_3x3_REFINMENT_POSITIONS; ++bipred_index) {
                 /**************
         NEWMV L0
@@ -1022,8 +1020,11 @@ void unipred_3x3_candidates_injection(const SequenceControlSet *scs_ptr, Picture
         const MeCandidate *me_block_results_ptr = &me_block_results[me_candidate_index];
         const uint8_t      inter_direction      = me_block_results_ptr->direction;
         const uint8_t      list1_ref_index      = me_block_results_ptr->ref_idx_l1;
-        if (list1_ref_index > context_ptr->md_max_ref_count - 1) continue;
+
         if (inter_direction == 1) {
+            if (list1_ref_index > context_ptr->md_max_ref_count - 1)
+                continue;
+
             for (bipred_index = 0; bipred_index < BIPRED_3x3_REFINMENT_POSITIONS; ++bipred_index) {
                 if (is_compound_enabled) {
                     /**************
@@ -5277,8 +5278,8 @@ void  inject_palette_candidates(
     for (cand_i = 0; cand_i < tot_palette_cands; ++cand_i) {
         cand_array[can_total_cnt].is_interintra_used = 0;
         palette_cand_array[cand_i].pmi.palette_size[1] = 0;
-        memcpy(cand_array[can_total_cnt].palette_info.color_idx_map, palette_cand_array[cand_i].color_idx_map, 64 * 64);
-        memcpy(&cand_array[can_total_cnt].palette_info.pmi, &palette_cand_array[cand_i].pmi, sizeof(PaletteModeInfo));
+        eb_memcpy(cand_array[can_total_cnt].palette_info.color_idx_map, palette_cand_array[cand_i].color_idx_map, 64 * 64);
+        eb_memcpy(&cand_array[can_total_cnt].palette_info.pmi, &palette_cand_array[cand_i].pmi, sizeof(PaletteModeInfo));
         assert(palette_cand_array[cand_i].pmi.palette_size[0] < 9);
         //to re check these fields
         cand_array[can_total_cnt].type = INTRA_MODE;
@@ -5647,9 +5648,9 @@ uint32_t product_full_mode_decision(
         }
         if (blk_ptr->prediction_mode_flag == INTRA_MODE)
         {
-            memcpy(&blk_ptr->palette_info.pmi, &candidate_ptr->palette_info.pmi, sizeof(PaletteModeInfo));
+            eb_memcpy(&blk_ptr->palette_info.pmi, &candidate_ptr->palette_info.pmi, sizeof(PaletteModeInfo));
             if(svt_av1_allow_palette(context_ptr->sb_ptr->pcs_ptr->parent_pcs_ptr->palette_mode, context_ptr->blk_geom->bsize))
-               memcpy(blk_ptr->palette_info.color_idx_map, candidate_ptr->palette_info.color_idx_map, MAX_PALETTE_SQUARE);
+               eb_memcpy(blk_ptr->palette_info.color_idx_map, candidate_ptr->palette_info.color_idx_map, MAX_PALETTE_SQUARE);
         }
         else {
             blk_ptr->palette_info.pmi.palette_size[0] = blk_ptr->palette_info.pmi.palette_size[1] = 0;
@@ -5794,7 +5795,7 @@ uint32_t product_full_mode_decision(
             uint32_t j;
 
             for (j = 0; j < bheight; j++)
-                memcpy(dst_ptr + j * bwidth, src_ptr + j * bwidth, bwidth * sizeof(int32_t));
+                eb_memcpy(dst_ptr + j * bwidth, src_ptr + j * bwidth, bwidth * sizeof(int32_t));
             if (context_ptr->blk_geom->has_uv)
             {
                 // Cb
@@ -5805,12 +5806,12 @@ uint32_t product_full_mode_decision(
                 dst_ptr = &(((int32_t*)context_ptr->blk_ptr->coeff_tmp->buffer_cb)[txb_1d_offset_uv]);
 
                 for (j = 0; j < bheight; j++)
-                    memcpy(dst_ptr + j * bwidth, src_ptr + j * bwidth, bwidth * sizeof(int32_t));
+                    eb_memcpy(dst_ptr + j * bwidth, src_ptr + j * bwidth, bwidth * sizeof(int32_t));
                 src_ptr = &(((int32_t*)buffer_ptr_array[lowest_cost_index]->residual_quant_coeff_ptr->buffer_cr)[txb_1d_offset_uv]);
                 dst_ptr = &(((int32_t*)context_ptr->blk_ptr->coeff_tmp->buffer_cr)[txb_1d_offset_uv]);
 
                 for (j = 0; j < bheight; j++)
-                    memcpy(dst_ptr + j * bwidth, src_ptr + j * bwidth, bwidth * sizeof(int32_t));
+                    eb_memcpy(dst_ptr + j * bwidth, src_ptr + j * bwidth, bwidth * sizeof(int32_t));
             }
 
             txb_1d_offset += context_ptr->blk_geom->tx_width[txb_itr] * context_ptr->blk_geom->tx_height[txb_itr];

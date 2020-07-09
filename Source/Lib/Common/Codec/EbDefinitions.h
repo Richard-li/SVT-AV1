@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stddef.h>
+#include <assert.h>
 #include "EbSvtAv1.h"
 #include "EbSvtAv1Enc.h"
 #ifdef _WIN32
@@ -353,14 +354,6 @@ extern void RunEmms();
 /* shift right or left depending on sign of n */
 #define RIGHT_SIGNED_SHIFT(value, n) ((n) < 0 ? ((value) << (-(n))) : ((value) >> (n)))
 //*********************************************************************************************************************//
-// cpmmom.h
-// Only need this for fixed-size arrays, for structs just assign.
-#define av1_copy(dest, src)                  \
-    {                                        \
-        assert(sizeof(dest) == sizeof(src)); \
-        memcpy(dest, src, sizeof(src));      \
-    }
-
 // mem_ops.h
 #ifndef MAU_T
 /* Minimum Access Unit for this target */
@@ -1146,18 +1139,6 @@ typedef enum ATTRIBUTE_PACKED {
 #define SUPERRES_SCALE_DENOMINATOR_MIN (SCALE_NUMERATOR + 1)
 #define NUM_SCALES 8
 
-//*********************************************************************************************************************//
-// assert.h
-#undef assert
-
-#ifdef NDEBUG
-
-#define assert(expression) ((void)0)
-
-#else
-#define assert(expression) ((void)0)
-
-#endif
 //**********************************************************************************************************************//
 // onyxc_int.h
 #define CDEF_MAX_STRENGTHS 16

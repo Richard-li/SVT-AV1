@@ -825,12 +825,9 @@ uint64_t picture_sse_calculations(PictureControlSet *pcs_ptr, EbPictureBufferDes
             recon_coeff_buffer = &(
                 (recon_ptr
                      ->buffer_y)[recon_ptr->origin_x + recon_ptr->origin_y * recon_ptr->stride_y]);
-            input_buffer =
-                &((input_picture_ptr
-                       ->buffer_y)[input_picture_ptr->origin_x +
-                                   input_picture_ptr->origin_y * input_picture_ptr->stride_y]);
-
-            residual_distortion = 0;
+            input_buffer = &((input_picture_ptr->buffer_y)[input_picture_ptr->origin_x +
+                                                           input_picture_ptr->origin_y *
+                                                               input_picture_ptr->stride_y]);
 
             while (row_index < input_picture_ptr->height) {
                 column_index = 0;
@@ -855,8 +852,6 @@ uint64_t picture_sse_calculations(PictureControlSet *pcs_ptr, EbPictureBufferDes
                                                             input_picture_ptr->origin_y / 2 *
                                                                 input_picture_ptr->stride_cb]);
 
-            residual_distortion = 0;
-            row_index           = 0;
             while (row_index < (uint32_t)(input_picture_ptr->height >> ss_y)) {
                 column_index = 0;
                 while (column_index < (uint32_t)(input_picture_ptr->width >> ss_x)) {
@@ -878,9 +873,6 @@ uint64_t picture_sse_calculations(PictureControlSet *pcs_ptr, EbPictureBufferDes
             input_buffer        = &((input_picture_ptr->buffer_cr)[input_picture_ptr->origin_x / 2 +
                                                             input_picture_ptr->origin_y / 2 *
                                                                 input_picture_ptr->stride_cr]);
-
-            residual_distortion = 0;
-            row_index           = 0;
 
             while (row_index < (uint32_t)(input_picture_ptr->height >> ss_y)) {
                 column_index = 0;
@@ -917,8 +909,6 @@ uint64_t picture_sse_calculations(PictureControlSet *pcs_ptr, EbPictureBufferDes
                                   input_picture_ptr->origin_y * input_picture_ptr->stride_y)
                                  << is_16bit]);
 
-            residual_distortion = 0;
-
             while (row_index < input_picture_ptr->height) {
                 column_index = 0;
                 while (column_index < input_picture_ptr->width) {
@@ -947,8 +937,6 @@ uint64_t picture_sse_calculations(PictureControlSet *pcs_ptr, EbPictureBufferDes
                                    input_picture_ptr->origin_y / 2 * input_picture_ptr->stride_cb)
                                   << is_16bit]);
 
-            residual_distortion = 0;
-            row_index           = 0;
             while (row_index < (uint32_t)(input_picture_ptr->height >> ss_y)) {
                 column_index = 0;
                 while (column_index < (uint32_t)(input_picture_ptr->width >> ss_x)) {
@@ -974,8 +962,6 @@ uint64_t picture_sse_calculations(PictureControlSet *pcs_ptr, EbPictureBufferDes
                      ->buffer_cr)[(input_picture_ptr->origin_x / 2 +
                                    input_picture_ptr->origin_y / 2 * input_picture_ptr->stride_cr)
                                   << is_16bit]);
-            residual_distortion = 0;
-            row_index           = 0;
 
             while (row_index < (uint32_t)(input_picture_ptr->height >> ss_y)) {
                 column_index = 0;
@@ -1016,8 +1002,7 @@ static int64_t try_filter_frame(
 
     EbBool is_16bit =
         (EbBool)(pcs_ptr->parent_pcs_ptr->scs_ptr->static_config.encoder_bit_depth > EB_8BIT);
-    EbPictureBufferDesc *recon_buffer =
-        is_16bit ? pcs_ptr->recon_picture16bit_ptr : pcs_ptr->recon_picture_ptr;
+    EbPictureBufferDesc *recon_buffer;
     if (pcs_ptr->parent_pcs_ptr->is_used_as_reference_flag == EB_TRUE) {
         //get the 16bit form of the input SB
         if (pcs_ptr->parent_pcs_ptr->scs_ptr->static_config.is_16bit_pipeline || is_16bit) {
@@ -1095,8 +1080,7 @@ static int32_t search_filter_level(
 
     EbBool is_16bit =
         (EbBool)(pcs_ptr->parent_pcs_ptr->scs_ptr->static_config.encoder_bit_depth > EB_8BIT);
-    EbPictureBufferDesc *recon_buffer =
-        is_16bit ? pcs_ptr->recon_picture16bit_ptr : pcs_ptr->recon_picture_ptr;
+    EbPictureBufferDesc *recon_buffer;
 
     if (pcs_ptr->parent_pcs_ptr->is_used_as_reference_flag == EB_TRUE) {
         //get the 16bit form of the input SB
@@ -1244,12 +1228,11 @@ void eb_av1_pick_filter_level(DlfContext *         context_ptr,
     const int32_t num_planes = 3;
     (void)srcBuffer;
     struct LoopFilter *const lf = &frm_hdr->loop_filter_params;
-    lf->sharpness_level         = frm_hdr->frame_type == KEY_FRAME ? 0 : 0;
+    lf->sharpness_level         = 0;
 
-    if (method == LPF_PICK_MINIMAL_LPF) {
-        lf->filter_level[0] = 0;
-        lf->filter_level[1] = 0;
-    } else if (method >= LPF_PICK_FROM_Q) {
+    if (method == LPF_PICK_MINIMAL_LPF)
+        lf->filter_level[0] = lf->filter_level[1] = 0;
+    else if (method >= LPF_PICK_FROM_Q) {
         const int32_t min_filter_level = 0;
         const int32_t max_filter_level = MAX_LOOP_FILTER; // av1_get_max_filter_level(cpi);
         const int32_t q                = eb_av1_ac_quant_q3(frm_hdr->quantization_params.base_q_idx,
